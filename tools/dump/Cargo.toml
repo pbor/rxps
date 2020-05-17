@@ -1,0 +1,11 @@
+[package]
+name = "rxps-dump"
+version = "0.1.0"
+edition = "2018"
+workspace = "../../"
+
+[dependencies]
+clap = "2"
+env_logger = "*"
+log = "*"
+rxps = { path = "../../" }

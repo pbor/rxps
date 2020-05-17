@@ -1,0 +1,20 @@
+[package]
+name = "rxps"
+version = "0.1.0"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/pbor/rxps"
+authors = ["Paolo Borelli"]
+edition = "2018"
+
+[workspace]
+members = [
+    "tools/dump",
+]
+default-members = [
+    "tools/dump",
+]
+
+[dependencies]
+log = "*"
+roxmltree = "0.11"
+zip = "0.5"
