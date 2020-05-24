@@ -18,3 +18,10 @@ default-members = [
 log = "*"
 roxmltree = "0.11"
 zip = "0.5"
+
+# cairo renderer
+cairo-rs = { version="0.8.0", features=["v1_16"], optional = true }
+
+[features]
+default = ["cairo-renderer"]
+cairo-renderer = ["cairo-rs"]

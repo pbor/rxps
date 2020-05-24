@@ -8,4 +8,5 @@ workspace = "../../"
 clap = "2"
 env_logger = "*"
 log = "*"
+cairo-rs = "0.8"
 rxps = { path = "../../" }

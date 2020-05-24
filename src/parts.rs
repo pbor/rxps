@@ -1,8 +1,13 @@
 use std::path::PathBuf;
 
 use crate::document::{Outline, OutlineEntry};
-use crate::error::Result;
-use crate::page;
+use crate::error::{Error, Result, XpsError};
+use crate::renderer::{
+    BleedBox, Brush, Canvas, Clip, ContentBox, EdgeMode, Fill, Glyphs, Indices, IsSideways,
+    NavigateUri, Opacity, OpacityMask, Path, RenderNode, RenderTransform, Stroke, StrokeDashArray,
+    StrokeDashOffset, StrokeEndLineCap, StrokeLineJoin, StrokeStartLineCap, StyleSimulations,
+    UnicodeString,
+};
 
 /*
     FixedDocumemntSequence,
@@ -125,10 +130,10 @@ pub struct FixedPage {
     pub(crate) name: Option<String>,
     pub(crate) width: Option<f64>,
     pub(crate) height: Option<f64>,
-    pub(crate) content_box: Option<page::ContentBox>,
-    pub(crate) bleed_box: Option<page::BleedBox>,
+    pub(crate) content_box: Option<ContentBox>,
+    pub(crate) bleed_box: Option<BleedBox>,
     pub(crate) xml_lang: Option<String>,
-    pub(crate) render_tree: page::RenderNode,
+    pub(crate) render_tree: RenderNode,
 }
 
 impl FixedPage {
@@ -160,20 +165,20 @@ impl FixedPage {
 
 fn parse_render_node<'a, 'i: 'a>(
     xml_node: roxmltree::Node<'a, 'i>,
-    render_node: &mut page::RenderNode,
+    render_node: &mut RenderNode,
 ) -> Result<()> {
     for n in xml_node.children() {
         if has_xps_tag_name(&n, "Path") {
             let path = parse_path(n)?;
-            render_node.append(page::RenderNode::Path(path))
+            render_node.append(RenderNode::Path(path))
         } else if has_xps_tag_name(&n, "Glyphs") {
             let glyphs = parse_glyphs(n)?;
-            render_node.append(page::RenderNode::Glyphs(glyphs))
+            render_node.append(RenderNode::Glyphs(glyphs))
         } else if has_xps_tag_name(&n, "Canvas") {
             let canvas = parse_canvas(n)?;
 
             // Canvas is a group that contains Path, Glyphs and Canvas
-            let mut canvas = page::RenderNode::Canvas(canvas);
+            let mut canvas = RenderNode::Canvas(canvas);
             parse_render_node(n, &mut canvas)?;
 
             render_node.append(canvas)
@@ -183,28 +188,64 @@ fn parse_render_node<'a, 'i: 'a>(
     Ok(())
 }
 
-fn parse_path<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<page::Path> {
-    let path = page::Path::default();
+fn parse_canvas<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Canvas> {
+    let mut canvas = Canvas::default();
 
-    // TODO
+    canvas.name = node.attribute("Name").map(String::from);
+
+    // FIXME: xml:lang - how does roxmltree deal with attribute namespaces?
+
+    // FIXME: x:Key - how does roxmltree deal with attribute namespaces?
+
+    canvas.render_transform = node
+        .attribute("RenderTransform")
+        .and_then(|s| s.parse::<RenderTransform>().ok());
+
+    canvas.clip = node.attribute("Clip").and_then(|s| s.parse::<Clip>().ok());
+
+    canvas.opacity = node
+        .attribute("Opacity")
+        .and_then(|s| s.parse::<Opacity>().ok());
+
+    canvas.opacity_mask = node
+        .attribute("OpacityMask")
+        .and_then(|s| s.parse::<OpacityMask>().ok());
+
+    canvas.edge_mode = node
+        .attribute("RenderOptions.EdgeMode")
+        .and_then(|s| s.parse::<EdgeMode>().ok());
+
+    canvas.navigate_uri = node
+        .attribute("FixedPage.NavigateUri")
+        .and_then(|s| s.parse::<NavigateUri>().ok());
+
+    // TODO:
+    // AutomationProperties.Name
+    // AutomationProperties.HelpText
 
     for n in node.children() {
-        if has_xps_tag_name(&n, "Path.Data") {
-        } else if has_xps_tag_name(&n, "Path.RenderTransform") {
-        } else if has_xps_tag_name(&n, "Path.Clip") {
-        } else if has_xps_tag_name(&n, "Path.Fill") {
-        } else if has_xps_tag_name(&n, "Path.Stroke") {
-        } else if has_xps_tag_name(&n, "Path.OpacityMask") {
+        if has_xps_tag_name(&n, "Canvas.Resources") {
+            parse_resources(n)?;
+        } else if has_xps_tag_name(&n, "Canvas.RenderTransform") {
+            parse_render_transform(n)?;
+        } else if has_xps_tag_name(&n, "Canvas.Clip") {
+            parse_clip(n)?;
+        } else if has_xps_tag_name(&n, "Canvas.OpacityMask") {
+            parse_opacity_mask(n)?;
         }
     }
 
-    Ok(path)
+    Ok(canvas)
 }
 
-fn parse_glyphs<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<page::Glyphs> {
-    let mut glyphs = page::Glyphs::default();
+fn parse_glyphs<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Glyphs> {
+    let mut glyphs = Glyphs::default();
 
     glyphs.name = node.attribute("Name").map(String::from);
+
+    // FIXME: xml:lang - how does roxmltree deal with attribute namespaces?
+
+    // FIXME: x:Key - how does roxmltree deal with attribute namespaces?
 
     glyphs.origin.0 = node
         .attribute("OriginX")
@@ -223,48 +264,230 @@ fn parse_glyphs<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<page::Glyph
         glyphs.font_rendering_em_size = parse_size(s);
     }
 
-    // TODO:
-    // BidiLevel,
-    // CaretStops,
-    // DevideFontName,
-    // Fill,
-    // IsSideways,
-    // Indices,
-    // UnicodeString,
-    // StyleSimulations,
-    // RenderTransform,
-    // Clip,
-    // Opacity,
-    // OpacityMask,
-    // FixedPage.NavigateUri,
-    // xml:lang,
-    // x:Key,
+    /* TODO:
+
+    glyphs.bidi_level = node
+        .attribute("BidiLevel")
+        .and_then(|s| s.parse::<BidiLevel>().ok());
+
+    glyphs.caret_stops = node
+        .attribute("CaretStops")
+        .and_then(|s| s.parse::<CaretStops>().ok());
+
+    glyphs.device_font_name = node
+        .attribute("DeviceFontName")
+        .and_then(|s| s.parse::<DeviceFontName>().ok());
+
+    */
+
+    glyphs.fill = node.attribute("Fill").and_then(|s| s.parse::<Fill>().ok());
+
+    glyphs.is_sideways = node
+        .attribute("IsSideways")
+        .and_then(|s| s.parse::<IsSideways>().ok());
+
+    glyphs.indices = node
+        .attribute("Indices")
+        .and_then(|s| s.parse::<Indices>().ok());
+
+    glyphs.unicode_string = node
+        .attribute("UnicodeString")
+        .and_then(|s| s.parse::<UnicodeString>().ok());
+
+    glyphs.style_simulations = node
+        .attribute("StyleSimulations")
+        .and_then(|s| s.parse::<StyleSimulations>().ok());
+
+    glyphs.render_transform = node
+        .attribute("RenderTransform")
+        .and_then(|s| s.parse::<RenderTransform>().ok());
+
+    glyphs.clip = node.attribute("Clip").and_then(|s| s.parse::<Clip>().ok());
+
+    glyphs.opacity = node
+        .attribute("Opacity")
+        .and_then(|s| s.parse::<Opacity>().ok());
+
+    glyphs.opacity_mask = node
+        .attribute("OpacityMask")
+        .and_then(|s| s.parse::<OpacityMask>().ok());
+
+    glyphs.navigate_uri = node
+        .attribute("FixedPage.NavigateUri")
+        .and_then(|s| s.parse::<NavigateUri>().ok());
 
     for n in node.children() {
         if has_xps_tag_name(&n, "Glyphs.RenderTransform") {
+            parse_render_transform(n)?;
         } else if has_xps_tag_name(&n, "Glyps.Clip") {
+            parse_clip(n)?;
         } else if has_xps_tag_name(&n, "Glyps.Fill") {
+            parse_fill(n)?;
         } else if has_xps_tag_name(&n, "Glyps.OpacityMask") {
+            parse_opacity_mask(n)?;
         }
     }
 
     Ok(glyphs)
 }
 
-fn parse_canvas<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<page::Canvas> {
-    let canvas = page::Canvas::default();
+fn parse_path<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Path> {
+    let mut path = Path::default();
 
-    // TODO
+    path.name = node.attribute("Name").map(String::from);
+
+    // FIXME: xml:lang - how does roxmltree deal with attribute namespaces?
+
+    // FIXME: x:Key - how does roxmltree deal with attribute namespaces?
+
+    path.data = node.attribute("Data").map(String::from);
+
+    path.fill = node.attribute("Fill").and_then(|s| s.parse::<Fill>().ok());
+
+    path.render_transform = node
+        .attribute("RenderTransform")
+        .and_then(|s| s.parse::<RenderTransform>().ok());
+
+    path.clip = node.attribute("Clip").and_then(|s| s.parse::<Clip>().ok());
+
+    path.opacity = node
+        .attribute("Opacity")
+        .and_then(|s| s.parse::<Opacity>().ok());
+
+    path.opacity_mask = node
+        .attribute("OpacityMask")
+        .and_then(|s| s.parse::<OpacityMask>().ok());
+
+    path.stroke = node
+        .attribute("Stroke")
+        .and_then(|s| s.parse::<Stroke>().ok());
+
+    path.stroke_dash_array = node
+        .attribute("StrokeDashArray")
+        .and_then(|s| s.parse::<StrokeDashArray>().ok());
+
+    path.stroke_dash_offset = node
+        .attribute("StrokeDashOffset")
+        .and_then(|s| s.parse::<StrokeDashOffset>().ok());
+
+    path.stroke_start_line_cap = node
+        .attribute("StrokeStartLineCap")
+        .and_then(|s| s.parse::<StrokeStartLineCap>().ok());
+
+    path.stroke_end_line_cap = node
+        .attribute("StrokeEndLineCap")
+        .and_then(|s| s.parse::<StrokeEndLineCap>().ok());
+
+    path.stroke_line_join = node
+        .attribute("StrokeLineJoin")
+        .and_then(|s| s.parse::<StrokeLineJoin>().ok());
 
     for n in node.children() {
-        if has_xps_tag_name(&n, "Canvas.Resources") {
-        } else if has_xps_tag_name(&n, "Canvas.RenderTransform") {
-        } else if has_xps_tag_name(&n, "Canvas.Clip") {
-        } else if has_xps_tag_name(&n, "Canvas.OpacityMask") {
+        if has_xps_tag_name(&n, "Path.Data") {
+            parse_path_data(n)?;
+        } else if has_xps_tag_name(&n, "Path.RenderTransform") {
+            parse_render_transform(n)?;
+        } else if has_xps_tag_name(&n, "Path.Clip") {
+            parse_clip(n)?;
+        } else if has_xps_tag_name(&n, "Path.Fill") {
+            parse_fill(n)?;
+        } else if has_xps_tag_name(&n, "Path.Stroke") {
+            parse_stroke(n)?;
+        } else if has_xps_tag_name(&n, "Path.OpacityMask") {
+            parse_opacity_mask(n)?;
         }
     }
 
-    Ok(canvas)
+    Ok(path)
+}
+
+fn parse_render_transform<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_clip<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_fill<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    let _brush = parse_brush(node)?;
+
+    // TODO
+    Ok(())
+}
+
+fn parse_stroke<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    let _brush = parse_brush(node)?;
+
+    // TODO
+    Ok(())
+}
+
+fn parse_opacity_mask<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    let _brush = parse_brush(node)?;
+
+    // TODO
+    Ok(())
+}
+
+fn parse_brush<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Brush> {
+    for n in node.children() {
+        if has_xps_tag_name(&n, "ImageBrush") {
+            parse_image_brush(n)?;
+            return Ok(Brush::Image);
+        } else if has_xps_tag_name(&n, "LinearGradientBrush") {
+            parse_linear_gradient_brush(n)?;
+            return Ok(Brush::LinearGradient);
+        } else if has_xps_tag_name(&n, "RadialGradientBrush") {
+            parse_radial_gradient_brush(n)?;
+            return Ok(Brush::RadialGradient);
+        } else if has_xps_tag_name(&n, "SolidColorBrush") {
+            parse_solid_color_brush(n)?;
+            return Ok(Brush::SolidColor);
+        } else if has_xps_tag_name(&n, "VisualBrush") {
+            parse_visual_brush(n)?;
+            return Ok(Brush::Visual);
+        }
+    }
+
+    Err(Error::Xps(XpsError::MissingBrush))
+}
+
+fn parse_image_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_linear_gradient_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_radial_gradient_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_solid_color_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_visual_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_resources<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
+}
+
+fn parse_path_data<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+    // TODO
+    Ok(())
 }
 
 #[derive(Debug, Default)]

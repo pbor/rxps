@@ -1,7 +1,7 @@
 use clap::{crate_version, App};
 use env_logger::Env;
 use log::info;
-use rxps::XPS;
+use rxps::{CairoRenderer, Renderer, XPS};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = App::new("rxps dump")
@@ -41,10 +41,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Render a page for testing purposes
+
     xps.documents()
         .take(1)
         .map(|d| {
-            d.pages().take(1).map(|p| p.render()).next();
+            d.pages()
+                .take(1)
+                .map(|p| {
+                    let (w, h) = p.size();
+                    let s = cairo::ImageSurface::create(cairo::Format::ARgb32, w as i32, h as i32)
+                        .unwrap();
+                    let cr = cairo::Context::new(&s);
+                    let r = CairoRenderer::new(cr);
+                    r.render_page(&p);
+                })
+                .next();
         })
         .next();
 
