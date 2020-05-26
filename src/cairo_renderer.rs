@@ -1,5 +1,7 @@
 use crate::renderer::{Canvas, Glyphs, Path, RenderTransform, Renderer};
 
+use crate::error::RenderResult;
+
 /// Cairo renderer
 #[derive(Debug)]
 pub struct CairoRenderer {
@@ -14,14 +16,20 @@ impl CairoRenderer {
 }
 
 impl Renderer for CairoRenderer {
-    fn render_canvas(&self, _canvas: &Canvas) {}
+    fn render_canvas(&self, _canvas: &Canvas) -> RenderResult<()> {
+        Ok(())
+    }
 
-    fn render_glyphs(&self, _glyphs: &Glyphs) {}
+    fn render_glyphs(&self, _glyphs: &Glyphs) -> RenderResult<()> {
+        Ok(())
+    }
 
-    fn render_path(&self, path: &Path) {
+    fn render_path(&self, path: &Path) -> RenderResult<()> {
         if let Some(t) = path.render_transform {
             self.cr.transform(t.into())
         }
+
+        Ok(())
     }
 }
 

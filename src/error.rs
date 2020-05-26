@@ -1,19 +1,43 @@
-pub type Result<T> = std::result::Result<T, Error>;
+pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
 #[derive(Debug)]
-pub enum XpsError {
+pub enum ParseError {
     MissingBrush,
 }
 
-impl std::fmt::Display for XpsError {
+impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            XpsError::MissingBrush => write!(f, "Missing brush element"),
+            ParseError::MissingBrush => write!(f, "Missing brush element"),
         }
     }
 }
 
-impl std::error::Error for XpsError {}
+impl std::error::Error for ParseError {}
+
+pub type RenderResult<T> = std::result::Result<T, RenderError>;
+
+#[derive(Debug)]
+pub enum RenderError {
+    #[cfg(feature = "cairo-renderer")]
+    Cairo, // FIXME: wrap the cairo error
+
+    Unknown,
+}
+
+impl std::fmt::Display for RenderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "cairo-renderer")]
+            RenderError::Cairo => write!(f, "Cairo error"),
+            RenderError::Unknown => write!(f, "Unknown rendering error"),
+        }
+    }
+}
+
+impl std::error::Error for RenderError {}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -22,7 +46,8 @@ pub enum Error {
     Utf16(std::string::FromUtf16Error),
     Zip(zip::result::ZipError),
     Xml(roxmltree::Error),
-    Xps(XpsError),
+    Xps(ParseError),
+    Render(RenderError),
 }
 
 impl std::fmt::Display for Error {
@@ -34,6 +59,7 @@ impl std::fmt::Display for Error {
             Error::Utf16(e) => e.fmt(f),
             Error::Xml(e) => e.fmt(f),
             Error::Xps(e) => e.fmt(f),
+            Error::Render(e) => e.fmt(f),
         }
     }
 }
@@ -70,8 +96,14 @@ impl From<roxmltree::Error> for Error {
     }
 }
 
-impl From<XpsError> for Error {
-    fn from(err: XpsError) -> Self {
+impl From<ParseError> for Error {
+    fn from(err: ParseError) -> Self {
         Error::Xps(err)
+    }
+}
+
+impl From<RenderError> for Error {
+    fn from(err: RenderError) -> Self {
+        Error::Render(err)
     }
 }

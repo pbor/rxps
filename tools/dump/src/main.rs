@@ -1,7 +1,7 @@
 use clap::{crate_version, App};
 use env_logger::Env;
 use log::info;
-use rxps::{CairoRenderer, Renderer, XPS};
+use rxps::{CairoRenderer, XPS};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = App::new("rxps dump")
@@ -24,41 +24,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let xps = XPS::load(file)?;
 
     info!(
-        "Loaded document {}, it contains {} documents",
+        "Loaded XPS file {}, it contains {} documents",
         file,
-        xps.documents().count()
+        xps.documents().len()
     );
 
-    for (i, d) in xps.documents().enumerate() {
-        info!("document #{} contains {} pages", i + 1, d.pages().count());
+    for (i, d) in xps.documents().iter().enumerate() {
+        info!("document #{} contains {} pages", i + 1, d.pages().len());
 
         if let Some(outline) = d.outline() {
             info!(
                 "document #{} outline contains {} entries",
                 i + 1,
-                outline.entries().count()
+                outline.entries().len()
             );
         }
     }
 
     // Render a page for testing purposes
 
-    xps.documents()
-        .take(1)
-        .map(|d| {
-            d.pages()
-                .take(1)
-                .map(|p| {
-                    let (w, h) = p.size();
-                    let s = cairo::ImageSurface::create(cairo::Format::ARgb32, w as i32, h as i32)
-                        .unwrap();
-                    let cr = cairo::Context::new(&s);
-                    let r = CairoRenderer::new(cr);
-                    r.render_page(&p);
-                })
-                .next();
-        })
-        .next();
+    let p = &xps.documents()[0].pages()[0];
+    let (w, h) = p.size();
+    let s = cairo::ImageSurface::create(cairo::Format::ARgb32, w as i32, h as i32).unwrap();
+    let cr = cairo::Context::new(&s);
+    let r = CairoRenderer::new(cr);
+    p.render(&r)?;
 
     Ok(())
 }

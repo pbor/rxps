@@ -2,11 +2,10 @@ use log::debug;
 use std::path::Path;
 
 use crate::archive::Archive;
-use crate::document::Document;
 use crate::error::Result;
-use crate::page::Page;
 use crate::parts::{DocumentStructure, FixedDocument, FixedDocumentSequence, FixedPage};
 use crate::relationships::{DocumentRelationships, PackageRelationships};
+use crate::renderer::Renderer;
 
 /// The main XPS entry point
 #[derive(Debug)]
@@ -102,20 +101,75 @@ impl XPS {
         Ok(Self { documents })
     }
 
-    /// Returns an iterator that yields `Documents` in the XPS archive.
-    pub fn documents(&self) -> Documents<'_> {
-        Documents(self.documents.iter())
+    /// Returns the `Documents` in the XPS archive.
+    pub fn documents(&self) -> &[Document] {
+        &self.documents
     }
 }
 
-/// Iterator from `XPS.documents`.
+/// A document inside the XPS archive
+#[derive(Debug, Default)]
+pub struct Document {
+    pub(crate) outline: Option<Outline>,
+    pub(crate) pages: Vec<Page>,
+}
+
+impl Document {
+    /// Returns the outline of the document, if available.
+    pub fn outline(&self) -> Option<&Outline> {
+        self.outline.as_ref()
+    }
+
+    /// Returns the `Pages` in the document.
+    pub fn pages(&self) -> &[Page] {
+        &self.pages
+    }
+}
+
+/// Outline of a `Document`. The outline of a document is a tree
+/// of (description, link) pairs that forms a table of contents.
+#[derive(Debug, Default)]
+pub struct Outline {
+    pub(crate) entries: Vec<OutlineEntry>,
+}
+
+impl Outline {
+    /// Returns the `OutlineEntries` in the document outline.
+    pub fn entries(&self) -> &[OutlineEntry] {
+        &self.entries
+    }
+}
+
+/// An entry in the `Outline` of a `Document`
+#[derive(Debug, Default)]
+pub struct OutlineEntry {
+    pub(crate) level: Option<String>,
+    pub(crate) description: Option<String>,
+    pub(crate) target: Option<String>,
+}
+
+use crate::renderer::RenderNode;
+
+/// A page in a `Document`
 #[derive(Debug)]
-pub struct Documents<'a>(std::slice::Iter<'a, Document>);
+pub struct Page {
+    pub(crate) width: f64,
+    pub(crate) height: f64,
+    pub(crate) name: Option<String>,
+    pub(crate) render_tree: RenderNode,
+    pub(crate) links: Vec<String>,
+}
 
-impl<'a> Iterator for Documents<'a> {
-    type Item = &'a Document;
+impl Page {
+    /// Returns the size of the page
+    pub fn size(&self) -> (f64, f64) {
+        (self.width, self.height)
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+    /// Renders a page with the given `Renderer`
+    pub fn render(&self, renderer: &impl Renderer) -> Result<()> {
+        renderer.render(&self.render_tree)?;
+
+        Ok(())
     }
 }

@@ -9,16 +9,12 @@
 )]
 
 mod archive;
-mod document;
 mod error;
-mod page;
 mod parts;
 mod relationships;
 mod renderer;
 mod xps;
 
-pub use crate::document::{Document, Outline};
-pub use crate::page::Page;
 pub use crate::renderer::Renderer;
 pub use crate::xps::XPS;
 

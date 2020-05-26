@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
-use crate::document::{Outline, OutlineEntry};
-use crate::error::{Error, Result, XpsError};
+use crate::error::{ParseError, ParseResult, Result};
 use crate::renderer::{
     BleedBox, Brush, Canvas, Clip, ContentBox, EdgeMode, Fill, Glyphs, Indices, IsSideways,
     NavigateUri, Opacity, OpacityMask, Path, RenderNode, RenderTransform, Stroke, StrokeDashArray,
     StrokeDashOffset, StrokeEndLineCap, StrokeLineJoin, StrokeStartLineCap, StyleSimulations,
     UnicodeString,
 };
+use crate::xps::{Outline, OutlineEntry};
 
 /*
     FixedDocumemntSequence,
@@ -188,7 +188,7 @@ fn parse_render_node<'a, 'i: 'a>(
     Ok(())
 }
 
-fn parse_canvas<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Canvas> {
+fn parse_canvas<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<Canvas> {
     let mut canvas = Canvas::default();
 
     canvas.name = node.attribute("Name").map(String::from);
@@ -238,7 +238,7 @@ fn parse_canvas<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Canvas> {
     Ok(canvas)
 }
 
-fn parse_glyphs<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Glyphs> {
+fn parse_glyphs<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<Glyphs> {
     let mut glyphs = Glyphs::default();
 
     glyphs.name = node.attribute("Name").map(String::from);
@@ -331,7 +331,7 @@ fn parse_glyphs<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Glyphs> {
     Ok(glyphs)
 }
 
-fn parse_path<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Path> {
+fn parse_path<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<Path> {
     let mut path = Path::default();
 
     path.name = node.attribute("Name").map(String::from);
@@ -401,38 +401,38 @@ fn parse_path<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Path> {
     Ok(path)
 }
 
-fn parse_render_transform<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_render_transform<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_clip<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_clip<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_fill<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_fill<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     let _brush = parse_brush(node)?;
 
     // TODO
     Ok(())
 }
 
-fn parse_stroke<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_stroke<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     let _brush = parse_brush(node)?;
 
     // TODO
     Ok(())
 }
 
-fn parse_opacity_mask<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_opacity_mask<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     let _brush = parse_brush(node)?;
 
     // TODO
     Ok(())
 }
 
-fn parse_brush<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Brush> {
+fn parse_brush<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> ParseResult<Brush> {
     for n in node.children() {
         if has_xps_tag_name(&n, "ImageBrush") {
             parse_image_brush(n)?;
@@ -452,40 +452,40 @@ fn parse_brush<'a, 'i: 'a>(node: roxmltree::Node<'a, 'i>) -> Result<Brush> {
         }
     }
 
-    Err(Error::Xps(XpsError::MissingBrush))
+    Err(ParseError::MissingBrush)
 }
 
-fn parse_image_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_image_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_linear_gradient_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_linear_gradient_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_radial_gradient_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_radial_gradient_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_solid_color_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_solid_color_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_visual_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_visual_brush<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_resources<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_resources<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }
 
-fn parse_path_data<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> Result<()> {
+fn parse_path_data<'a, 'i: 'a>(_node: roxmltree::Node<'a, 'i>) -> ParseResult<()> {
     // TODO
     Ok(())
 }

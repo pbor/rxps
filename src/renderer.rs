@@ -1,43 +1,39 @@
 use std::str::FromStr;
 
-use crate::page::Page;
+use crate::error::RenderResult;
 
 /// Renderer trait
 pub trait Renderer {
-    /// Renders a page
-    fn render_page(&self, page: &Page) {
-        match page.render_tree {
+    /// Renders a tree of `RenderNode`s
+    fn render(&self, tree: &RenderNode) -> RenderResult<()> {
+        match tree {
             RenderNode::Root(ref children) => self.render_children(&children),
             _ => unreachable!(),
         }
     }
 
-    // FIXME: is there a way to hide the following methods from the
-    // public API? This is needed because also `Path`, `Glyphs` etc
-    // are pulled in the public API.
-    // Maybe we need two traits and then return a trait
-    // object to the caller?
-
     /// Renders children of a node
-    fn render_children(&self, children: &[RenderNode]) {
+    fn render_children(&self, children: &[RenderNode]) -> RenderResult<()> {
         for c in children {
             match c {
-                RenderNode::Path(p) => self.render_path(&p),
-                RenderNode::Glyphs(g) => self.render_glyphs(&g),
-                RenderNode::Canvas(c) => self.render_canvas(&c),
+                RenderNode::Path(p) => self.render_path(&p)?,
+                RenderNode::Glyphs(g) => self.render_glyphs(&g)?,
+                RenderNode::Canvas(c) => self.render_canvas(&c)?,
                 _ => unreachable!(),
             }
         }
+
+        Ok(())
     }
 
     /// Renders a canvas node
-    fn render_canvas(&self, canvas: &Canvas);
+    fn render_canvas(&self, canvas: &Canvas) -> RenderResult<()>;
 
     /// Renders a glyphs node
-    fn render_glyphs(&self, glyphs: &Glyphs);
+    fn render_glyphs(&self, glyphs: &Glyphs) -> RenderResult<()>;
 
     /// Renders a path node
-    fn render_path(&self, path: &Path);
+    fn render_path(&self, path: &Path) -> RenderResult<()>;
 }
 
 #[derive(Debug)]
